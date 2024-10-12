@@ -1,0 +1,68 @@
+<?xml version='1.0'?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="esp32bot">
+    <link name="base_link" />
+
+    <xacro:macro name="ros2_control_joint_can" params="can_id">
+        <joint name="joint${can_id}">
+            <command_interface name="position" />
+            <state_interface name="position" />
+            <state_interface name="velocity" />
+            <state_interface name="effort" />
+            <param name="can_id">${can_id}</param>
+        </joint>
+    </xacro:macro>
+
+    <xacro:macro name="joint_can" params="can_id">
+        <link name="link${can_id}"></link>
+        <joint name="joint${can_id}" type="continuous">
+            <parent link="base_link" />
+            <child link="link${can_id}" />
+            <origin xyz="0.0 -0.1 0.0" rpy="0.0 0.0 0.0" />
+            <axis xyz="0.0 1.0 0.0" />
+            <limit effort="1.5" velocity="24.0" />
+            <dynamics damping="0.001" friction="0.001" />
+        </joint>
+    </xacro:macro>
+
+
+    <xacro:joint_can can_id="10" />
+    <xacro:joint_can can_id="11" />
+    <xacro:joint_can can_id="12" />
+
+    <xacro:joint_can can_id="20" />
+    <xacro:joint_can can_id="21" />
+    <xacro:joint_can can_id="22" />
+
+    <xacro:joint_can can_id="30" />
+    <xacro:joint_can can_id="31" />
+    <xacro:joint_can can_id="32" />
+
+    <xacro:joint_can can_id="40" />
+    <xacro:joint_can can_id="41" />
+    <xacro:joint_can can_id="42" />
+
+
+    <ros2_control name="MD80HardwareInterface" type="system">
+        <hardware>
+            <plugin>md80_hardware_interface/MD80HardwareInterface</plugin>
+            <param name="encoders_cpr">4096</param>
+        </hardware>
+        <!-- <xacro:ros2_control_joint_can can_id="10" />
+        <xacro:ros2_control_joint_can can_id="11" />
+        <xacro:ros2_control_joint_can can_id="12" /> -->
+
+        <xacro:ros2_control_joint_can can_id="20" />
+        <xacro:ros2_control_joint_can can_id="21" />
+        <xacro:ros2_control_joint_can can_id="22" />
+
+        <!-- <xacro:ros2_control_joint_can can_id="30" />
+        <xacro:ros2_control_joint_can can_id="31" />
+        <xacro:ros2_control_joint_can can_id="32" />
+
+        <xacro:ros2_control_joint_can can_id="40" />
+        <xacro:ros2_control_joint_can can_id="41" />
+        <xacro:ros2_control_joint_can can_id="42" /> -->
+    </ros2_control>
+
+
+</robot>
