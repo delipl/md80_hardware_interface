@@ -1,0 +1,3 @@
+[submodule "3rd_party/candle"]
+	path = 3rd_party/candle
+	url = https://github.com/mabrobotics/candle.git
