@@ -149,9 +149,9 @@ MD80HardwareInterface::write(const rclcpp::Time & /*time*/,
       if (control_mode == mab::Md80Mode_E::POSITION_PID) {
         md.setTargetPosition(md80_info_[i].command.position);
       } else if (control_mode == mab::Md80Mode_E::VELOCITY_PID) {
-        md.setTargetVelocity(md80_info_[i].command.position);
+        md.setTargetVelocity(md80_info_[i].command.velocity);
       } else if (control_mode == mab::Md80Mode_E::IMPEDANCE) {
-        md.setTargetTorque(md80_info_[i].command.position);
+        md.setTargetTorque(md80_info_[i].command.effort);
       }
 
       ++i;
@@ -233,7 +233,7 @@ void MD80HardwareInterface::set_modes() {
     auto candle = find_candle_by_motor_can_id(md80.can_id);
 
     RCLCPP_INFO_STREAM(rclcpp::get_logger(get_name()),
-                       "Nitializing motor at can_id: " << md80.can_id);
+                       "Initializing motor at can_id: " << md80.can_id);
 
     if (candle == nullptr) {
       throw std::runtime_error(

@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 200 # Hz
+    update_rate: 400 # Hz
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -10,18 +10,21 @@ controller_manager:
 joint_trajectory_controller:
     ros__parameters:
       joints:
-        # - joint10
-        # - joint11
-        # - joint12
-        - joint20
-        - joint21
-        - joint22
-        # - joint30
-        # - joint31
-        # - joint32
-        # - joint40
-        # - joint41
-        # - joint42
+        - front_left_first_joint
+        - front_left_second_joint
+        - front_left_third_joint
+
+        - front_right_first_joint
+        - front_right_second_joint
+        - front_right_third_joint
+
+        - rear_left_first_joint
+        - rear_left_second_joint
+        - rear_left_third_joint
+
+        - rear_right_first_joint
+        - rear_right_second_joint
+        - rear_right_third_joint
       command_interfaces:
         # - velocity
         - position
