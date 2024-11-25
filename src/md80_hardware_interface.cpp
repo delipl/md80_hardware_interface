@@ -45,6 +45,7 @@ hardware_interface::CallbackReturn MD80HardwareInterface::on_configure(
 
   try {
     try_to_initialize_motors();
+    set_config_to_md80();
 
   } catch (const std::runtime_error &e) {
     RCLCPP_ERROR_STREAM(rclcpp::get_logger(get_name()),
@@ -91,7 +92,9 @@ MD80HardwareInterface::export_command_interfaces() {
       command_interfaces.emplace_back(hardware_interface::CommandInterface(
           info_.joints[i].name, hardware_interface::HW_IF_POSITION,
           &md80_info_[i].command.position));
-      md80_info_[i].control_mode = mab::Md80Mode_E::POSITION_PID;
+
+      md80_info_[i].control_mode = mab::Md80Mode_E::IMPEDANCE;
+
     } else if (control_mode == "velocity") {
       command_interfaces.emplace_back(hardware_interface::CommandInterface(
           info_.joints[i].name, hardware_interface::HW_IF_VELOCITY,
@@ -112,9 +115,16 @@ MD80HardwareInterface::export_command_interfaces() {
 hardware_interface::CallbackReturn MD80HardwareInterface::on_activate(
     const rclcpp_lifecycle::State & /*previous_state*/) {
 
-  enable_motors();
   //  TODO: Add service to zero encoders
   // zero_encoders();
+
+  read(rclcpp::Time{}, rclcpp::Duration(0, 0));
+  reset_command();
+  log_current_joint_position();
+
+  write(rclcpp::Time{}, rclcpp::Duration(0, 0));
+  enable_motors();
+
   return CallbackReturn::SUCCESS;
 }
 
@@ -151,7 +161,7 @@ MD80HardwareInterface::write(const rclcpp::Time & /*time*/,
       } else if (control_mode == mab::Md80Mode_E::VELOCITY_PID) {
         md.setTargetVelocity(md80_info_[i].command.velocity);
       } else if (control_mode == mab::Md80Mode_E::IMPEDANCE) {
-        md.setTargetTorque(md80_info_[i].command.effort);
+        md.setTargetPosition(md80_info_[i].command.position);
       }
 
       ++i;
@@ -159,6 +169,42 @@ MD80HardwareInterface::write(const rclcpp::Time & /*time*/,
   }
 
   return hardware_interface::return_type::OK;
+}
+
+void MD80HardwareInterface::parse_urdf_joint_info(
+    MD80Info &md80, const hardware_interface::ComponentInfo &info) {
+  const auto can_id = std::stoi(info.parameters.at("can_id"));
+
+  const auto q_kp = std::stof(info.parameters.at("q_kp"));
+  const auto q_ki = std::stof(info.parameters.at("q_ki"));
+  const auto q_kd = std::stof(info.parameters.at("q_kd"));
+  const auto q_windup = std::stof(info.parameters.at("q_windup"));
+
+  const auto dq_kp = std::stof(info.parameters.at("dq_kp"));
+  const auto dq_ki = std::stof(info.parameters.at("dq_ki"));
+  const auto dq_kd = std::stof(info.parameters.at("dq_kd"));
+  const auto dq_windup = std::stof(info.parameters.at("dq_windup"));
+
+  const auto ddq_kp = std::stof(info.parameters.at("ddq_kp"));
+  const auto ddq_kd = std::stof(info.parameters.at("ddq_kd"));
+
+  const auto max_torque = std::stof(info.parameters.at("max_torque"));
+
+  md80.can_id = can_id;
+  md80.q_pid.kp = q_kp;
+  md80.q_pid.ki = q_ki;
+  md80.q_pid.kd = q_kd;
+  md80.q_pid.windup = q_windup;
+
+  md80.dq_pid.kp = dq_kp;
+  md80.dq_pid.ki = dq_ki;
+  md80.dq_pid.kd = dq_kd;
+  md80.dq_pid.windup = dq_windup;
+
+  md80.ddq_pid.kp = ddq_kp;
+  md80.ddq_pid.kd = ddq_kd;
+
+  md80.max_torque = max_torque;
 }
 
 std::shared_ptr<mab::Candle>
@@ -208,11 +254,13 @@ void MD80HardwareInterface::try_to_initialize_motors() {
 
     for (auto &candle : candle_instances) {
       if (candle->addMd80(can_id, false)) {
-        md80_info_[found_devices].can_id = can_id;
         RCLCPP_INFO_STREAM(rclcpp::get_logger(get_name()),
                            "Found device at f: "
                                << found_devices << " but id "
                                << md80_info_[found_devices].can_id);
+
+        parse_urdf_joint_info(std::ref(md80_info_[found_devices]), joint_info);
+
         found_devices++;
       } else
         not_found_devices++;
@@ -225,6 +273,35 @@ void MD80HardwareInterface::try_to_initialize_motors() {
 
     RCLCPP_INFO_STREAM(rclcpp::get_logger(get_name()),
                        "Initialized motor at can_id: " << can_id);
+  }
+}
+
+void MD80HardwareInterface::set_config_to_md80() {
+  std::size_t i = 0;
+  for (auto candle : candle_instances) {
+    for (auto &md : candle->md80s) {
+      auto &md80_info = md80_info_[i];
+
+      RCLCPP_INFO_STREAM(
+          rclcpp::get_logger(get_name()),
+          "Setting PIDs for motor at can_id: " << md80_info.can_id);
+
+      md.setPositionControllerParams(md80_info.q_pid.kp, md80_info.q_pid.ki,
+                                     md80_info.q_pid.kd,
+                                     md80_info.q_pid.windup);
+      md.setVelocityControllerParams(md80_info.dq_pid.kp, md80_info.dq_pid.ki,
+                                     md80_info.dq_pid.kd,
+                                     md80_info.dq_pid.windup);
+      md.setImpedanceControllerParams(md80_info.ddq_pid.kp,
+                                      md80_info.ddq_pid.kd);
+
+      md.setMaxTorque(md80_info.max_torque);
+
+      RCLCPP_INFO_STREAM(rclcpp::get_logger(get_name()),
+                         "PIDs is set motor at can_id: " << md80_info.can_id);
+
+      ++i;
+    }
   }
 }
 
@@ -269,6 +346,22 @@ void MD80HardwareInterface::disable_motors() {
   for (auto &md80 : md80_info_) {
     auto candle = find_candle_by_motor_can_id(md80.can_id);
     candle->controlMd80Enable(md80.can_id, false);
+  }
+}
+
+void MD80HardwareInterface::reset_command() {
+  for (auto &md80_info : md80_info_) {
+    md80_info.command.position = md80_info.state.position;
+    md80_info.command.velocity = 0.0;
+    md80_info.command.effort = 0.0;
+  }
+}
+
+void MD80HardwareInterface::log_current_joint_position() {
+  for (auto &md80_info : md80_info_) {
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(get_name()),
+                       "can id " << md80_info.can_id << " position "
+                                 << md80_info.state.position);
   }
 }
 

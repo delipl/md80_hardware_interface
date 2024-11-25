@@ -36,9 +36,16 @@
 namespace md80_hardware_interface {
 
 struct JointInfo {
-  double position = std::numeric_limits<double>::quiet_NaN();
-  double velocity = std::numeric_limits<double>::quiet_NaN();
-  double effort = std::numeric_limits<double>::quiet_NaN();
+  double position = 0.0;
+  double velocity = 0.0;
+  double effort = 0.0;
+};
+
+struct PID {
+  float kp;
+  float ki;
+  float kd;
+  float windup;
 };
 
 struct MD80Info {
@@ -46,6 +53,10 @@ struct MD80Info {
   JointInfo command;
   int can_id;
   mab::Md80Mode_E control_mode;
+  float max_torque;
+  PID q_pid;
+  PID dq_pid;
+  PID ddq_pid;
 };
 
 class MD80HardwareInterface : public hardware_interface::SystemInterface {
@@ -83,14 +94,20 @@ public:
   write(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
 private:
+  void parse_urdf_joint_info(MD80Info &md80, const hardware_interface::ComponentInfo &info);
+
   std::shared_ptr<mab::Candle> find_candle_by_motor_can_id(uint16_t can_id);
   void add_candle_instances();
   void try_to_initialize_motors();
+  void set_config_to_md80();
   void set_modes();
 
   void zero_encoders();
   void enable_motors();
   void disable_motors();
+
+  void reset_command();
+  void log_current_joint_position();
 
   std::vector<MD80Info> md80_info_;
 
